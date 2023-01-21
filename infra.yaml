@@ -1,0 +1,395 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create app1 Network enrionments"
+
+Parameters: 
+  projectName:
+    Type: String
+    Default: "FleetManagerTest"
+  env:
+    Type: String
+    Default: "dev"
+  keyname:
+    Type: String
+
+Resources: 
+# ------------------------------------------------------------#
+#  VPC IGW IGWattach
+# ------------------------------------------------------------#
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${projectName}-${env}-vpc"
+
+# ------------------------------------------------------------#
+#  Subnet RT RTaccosiate
+# ------------------------------------------------------------#
+# Subnet
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub "${AWS::Region}a"
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.10.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub "${projectName}-${env}-privateSubnet1a"
+
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub "${AWS::Region}c"
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.11.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub "${projectName}-${env}-privateSubnet1c"
+          
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${projectName}-${env}-privateRT"
+
+# RouteTableAssociate
+  PrivateARTAssociate:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateCRTAssociate:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetC
+      RouteTableId: !Ref PrivateRouteTable
+
+# ------------------------------------------------------------#
+#  Security Group
+# ------------------------------------------------------------#
+  # SSMAgentSG:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     VpcId: !Ref VPC
+  #     GroupDescription: !Sub "${projectName} ssmagent Security Group"
+  # EndpointSG:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     VpcId: !Ref VPC
+  #     GroupDescription: !Sub "${projectName} endpoint Security Group"
+  # OutboundRule:
+  #   Type: AWS::EC2::SecurityGroupEgress
+  #   Properties:
+  #     IpProtocol: tcp
+  #     FromPort: 443
+  #     ToPort: 443
+  #     DestinationSecurityGroupId:
+  #       Fn::GetAtt:
+  #         - EndpointSG
+  #         - GroupId
+  #     GroupId:
+  #       Fn::GetAtt:
+  #         - SSMAgentSG
+  #         - GroupId
+  # InboundRule:
+  #   Type: AWS::EC2::SecurityGroupIngress
+  #   Properties:
+  #     IpProtocol: tcp
+  #     FromPort: 443
+  #     ToPort: 443
+  #     SourceSecurityGroupId:
+  #       Fn::GetAtt:
+  #         - SSMAgentSG
+  #         - GroupId
+  #     GroupId:
+  #       Fn::GetAtt:
+  #         - EndpointSG
+  #         - GroupId
+
+# ------------------------------------------------------------#
+#  Endpoint
+# ------------------------------------------------------------#
+  SSMEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PrivateDnsEnabled: true
+      # SecurityGroupIds: 
+      #   - !Ref EndpointSG
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ssm'
+      SubnetIds: 
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+  SSMMessageEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PrivateDnsEnabled: true
+      # SecurityGroupIds: 
+      #   - !Ref EndpointSG
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ssmmessages'
+      SubnetIds: 
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+  EC2messagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PrivateDnsEnabled: true
+      # SecurityGroupIds: 
+      #   - !Ref EndpointSG
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.ec2messages'
+      SubnetIds: 
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+  KMSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PrivateDnsEnabled: true
+      # SecurityGroupIds: 
+      #   - !Ref EndpointSG
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.kms'
+      SubnetIds: 
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+# # ------------------------------------------------------------#
+# #  IAM
+# # ------------------------------------------------------------#
+#   # Flletmanager管理者ポリシー
+#   FleetManagerROPolicy:
+#     Type: AWS::IAM::Policy
+#     Properties: 
+#       PolicyDocument:
+#         Version: "2012-10-17"
+#         Statement: 
+#         - Sid: "EC2"
+#           Effect: "Allow"
+#           Action: 
+#           - "ec2:CreateTags"
+#           - "ec2:DeleteTags"
+#           - "ec2:DescribeInstances"
+#           - "ec2:DescribeTags"
+#           Resource: "*"
+#         - Sid: "General"
+#           Effect: "Allow"
+#           Action: 
+#           - "ssm:AddTagsToResource"
+#           - "ssm:DescribeInstanceAssociationsStatus"
+#           - "ssm:DescribeInstancePatches"
+#           - "ssm:DescribeInstancePatchStates"
+#           - "ssm:DescribeInstanceProperties"
+#           - "ssm:GetCommandInvocation"
+#           - "ssm:GetServiceSetting"
+#           - "ssm:GetInventorySchema"
+#           - "ssm:ListComplianceItems"
+#           - "ssm:ListInventoryEntries"
+#           - "ssm:ListTagsForResource"
+#           - "ssm:ListCommandInvocations"
+#           - "ssm:ListAssociations"
+#           - "ssm:RemoveTagsFromResource"
+#           Resource: "*"
+#         - Sid: "SendCommand"
+#           Effect: "Allow"
+#           Action: 
+#           - "ssm:GetDocument"
+#           - "ssm:SendCommand"
+#           - "ssm:StartSession"
+#           Resource: 
+#           - !Sub "arn:aws:ec2:*:${AWS::AccountId}:instance/*"
+#           - !Sub "arn:aws:ssm:*:${AWS::AccountId}:managed-instance/*"
+#           - !Sub "arn:aws:ssm:*:${AWS::AccountId}:document/SSM-SessionManagerRunShell"
+#           - "arn:aws:ssm:*:*:document/AWS-PasswordReset"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-AddUsersToGroups"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-CreateGroup"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-CreateUser"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-CreateUserInteractive"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-CreateWindowsRegistryKey"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-DeleteGroup"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-DeleteUser"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-DeleteWindowsRegistryKey"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-DeleteWindowsRegistryValue"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-GetFileContent"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-GetFileSystemContent"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-GetGroups"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-GetPerformanceCounters"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-GetUsers"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-GetWindowsEvents"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-GetWindowsRegistryContent"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-RemoveUsersFromGroups"
+#           - "arn:aws:ssm:*:*:document/AWSFleetManager-SetWindowsRegistryValue"
+#           Condition: 
+#             BoolIfExists: 
+#               ssm:SessionDocumentAccessCheck: "true"
+#         - Sid: "TerminateSession"
+#           Effect: "Allow"
+#           Action: 
+#           - "ssm:TerminateSession"
+#           Resource: "*"
+#           Condition: 
+#             StringLike: 
+#               ssm:resourceTag/aws:ssmmessages:session-id: 
+#               - "${aws:userid}"
+#         - Sid: "KMS"
+#           Effect: "Allow"
+#           Action: 
+#           - "kms:GenerateDataKey"
+#           Resource: 
+#           - !Sub "arn:aws:kms:region:${AWS::AccountId}:key/test2"
+#       PolicyName: 'EnableFleetManagerPolicy'
+#       Roles: 
+#         - !Ref FleetManagerRORole
+  FleetManagerRORole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      RoleName: 'FleetManagerRORole'
+
+# ------------------------------------------------------------#
+#  EC2
+# ------------------------------------------------------------#
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: 'EC2InstanceProfile'
+      Roles: 
+        - !Ref FleetManagerRORole
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: 'ami-0ceecbb0f30a902a6'
+      InstanceType: 't2.micro'
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      Monitoring: true
+      SubnetId: !Ref PrivateSubnetA
+      # SecurityGroupIds:
+      #   - !Ref SSMAgentSG
+      Tags:
+        - Key: Name
+          Value: !Sub "${projectName}-${env}-ec2"
+
+# ------------------------------------------------------------#
+#  KMS
+# ------------------------------------------------------------#
+  # KMSPolicy:
+  #   Type: AWS::KMS::Key
+  #   Properties: 
+  #     Description: Key for Fleetmanager secure session
+  #     Enabled: true
+  #     EnableKeyRotation: false
+  #     KeyPolicy:
+  #       Version: "2012-10-17"
+  #       Id: "key-consolepolicy-3"
+  #       Statement: 
+  #       - Sid: "Enable IAM User Permissions"
+  #         Effect: "Allow"
+  #         Principal: 
+  #           AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+  #         Action: "kms:*"
+  #         Resource: "*"
+  #       - Sid: "Allow access for Key Administrators"
+  #         Effect: "Allow"
+  #         Principal: 
+  #           AWS: "${aws:userid}"
+  #         Action: 
+  #         - "kms:Create*"
+  #         - "kms:Describe*"
+  #         - "kms:Enable*"
+  #         - "kms:List*"
+  #         - "kms:Put*"
+  #         - "kms:Update*"
+  #         - "kms:Revoke*"
+  #         - "kms:Disable*"
+  #         - "kms:Get*"
+  #         - "kms:Delete*"
+  #         - "kms:TagResource"
+  #         - "kms:UntagResource"
+  #         - "kms:ScheduleKeyDeletion"
+  #         - "kms:CancelKeyDeletion"
+  #         Resource: "*"
+  #       - Sid: "Allow use of the key"
+  #         Effect: "Allow"
+  #         Principal: 
+  #           AWS: 
+  #           - "${aws:userid}"
+  #           - !GetAtt FleetManagerRORole.Arn
+  #         Action: 
+  #         - "kms:Encrypt"
+  #         - "kms:Decrypt"
+  #         - "kms:ReEncrypt*"
+  #         - "kms:GenerateDataKey*"
+  #         - "kms:DescribeKey"
+  #         Resource: "*"
+  #       - Sid: "Allow attachment of persistent resources"
+  #         Effect: "Allow"
+  #         Principal: 
+  #           AWS: 
+  #           - "${aws:userid}"
+  #           - !GetAtt FleetManagerRORole.Arn
+  #         Action: 
+  #         - "kms:CreateGrant"
+  #         - "kms:ListGrants"
+  #         - "kms:RevokeGrant"
+  #         Resource: "*"
+  #         Condition: 
+  #           Bool: 
+  #             kms:GrantIsForAWSResource: "true"
+  #     PendingWindowInDays: 7
+  #     Tags: 
+  #       - Key: Name
+  #         Value: !Sub "${projectName}-${env}-kms"
+
+# ------------------------------------------------------------#
+#  OUTPUT
+# ------------------------------------------------------------#
+# Outputs:
+#   VPCID:
+#     Value: !Ref VPC
+#     Export:
+#       Name: !Sub "${projectName}-${env}-vpc-ID"
+      
+#   VPCCIDR:
+#     Value: !GetAtt VPC.CidrBlock
+#     Export:
+#       Name: !Sub "${projectName}-${env}-vpccidr"
+
+#   PublicSubnetAID:
+#     Value: !Ref PublicSubnetA
+#     Export:
+#       Name: !Sub "${projectName}-${env}-publicSubnet1a-ID"
+
+#   PublicSubnetCID:
+#     Value: !Ref PublicSubnetC
+#     Export:
+#       Name: !Sub "${projectName}-${env}-publicSubnet1c-ID"
+
+#   PrivateSubnetAID:
+#     Value: !Ref PrivateSubnetA
+#     Export:
+#       Name: !Sub "${projectName}-${env}-privateSubnet1a-ID"
+
+#   PrivateSubnetC:
+#     Value: !Ref PrivateSubnetC
+#     Export:
+#       Name: !Sub "${projectName}-${env}-privateubnet1c-ID"
